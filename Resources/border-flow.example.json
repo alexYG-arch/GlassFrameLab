@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "mode": "loop",
+  "period": 7,
+  "clockwise": true,
+  "tailFraction": 0.2,
+  "strength": 0.85,
+  "innerGlowGain": 0.2,
+  "innerShadeGain": 0.012,
+  "spread": 10,
+  "headColor": [
+    0.12,
+    0.33529803598359087,
+    1.0
+  ],
+  "tailColor": [
+    0.32,
+    0.025,
+    0.8
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "sigma": 12,
+  "innerShade": 0.055,
+  "shadowColor": [
+    0,
+    0,
+    0
+  ],
+  "strokeOpacity": 0.4,
+  "cornerRadius": 16,
+  "shadowOpacity": 0.14,
+  "strokeWidth": 0.55,
+  "nonuniformity": 0.85,
+  "saturation": 1.08,
+  "innerWidth": 3,
+  "tintColor": [
+    1,
+    1,
+    1
+  ],
+  "tintOpacity": 0.008,
+  "brightness": 0,
+  "shadowExtent": 6,
+  "innerStrength": 0.16,
+  "innerColor": [1, 1, 1],
+  "lightDirection": [
+    -0.6,
+    -0.8
+  ]
+}
