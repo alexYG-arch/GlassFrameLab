@@ -3,8 +3,8 @@
 import argparse,csv,json,math,statistics,subprocess,tempfile,time
 from pathlib import Path
 from material_test_support import *
-parser=argparse.ArgumentParser();parser.add_argument('--backend',choices=['custom','system','both'],default='both');args=parser.parse_args()
-ws_pid=subprocess.run(['pgrep','-x','WindowServer'],capture_output=True,text=True).stdout.strip().splitlines()
+parser=argparse.ArgumentParser();parser.add_argument('--backend',choices=['custom','system','both'],default='both');parser.add_argument('--functional-only',action='store_true',help='Skip resource collection and resource conclusions');args=parser.parse_args()
+ws_pid=[] if args.functional_only else subprocess.run(['pgrep','-x','WindowServer'],capture_output=True,text=True).stdout.strip().splitlines()
 run=Path(tempfile.mkdtemp(prefix='glass-system-smoke-',dir='/private/tmp'))
 print('RUN',run,flush=True)
 app=make_test_app(run);results={}
@@ -23,7 +23,7 @@ for backend in (['custom','system'] if args.backend=='both' else [args.backend])
    log=(case/'process.log').open('w')
    source=subprocess.Popen([str(BINARY),'--upgrade-probe','--duration','85','--no-permission-prompt','--output',str(case)],stdout=log,stderr=subprocess.STDOUT)
   # Window/probe startup can take longer through LaunchServices. Align images
-  # to the first observation's process clock rather than open() wall time.
+  # to the in-app probe clock rather than open() wall time.
   probe_offset=wait_json(case/'upgrade-probe-start.json')['uptime']-started
   captures={4+probe_offset:'off',31+probe_offset:'on',35+probe_offset:'light-flow',42+probe_offset:'drag',47+probe_offset:'resize',68+probe_offset:'shown'}
   next_log=5;next_ws=5
@@ -36,7 +36,7 @@ for backend in (['custom','system'] if args.backend=='both' else [args.backend])
     print('STAGE',backend,round(elapsed),{k:state.get(k) for k in ['material_visible','flow_running','flow_phase','gpu_submissions','decoration_error']},flush=True)
     if state.get('desktop_blockers') or state.get('screen_capture_permission') is False:raise RuntimeError('Desktop or custom capture unavailable')
     next_log+=25
-   if elapsed>=next_ws and elapsed<=30:
+   if not args.functional_only and elapsed>=next_ws and elapsed<=30:
     # Whole WindowServer process: contextual only, includes unrelated windows.
     sample=subprocess.run(['ps','-p',','.join(ws_pid),'-o','%cpu=,rss='],capture_output=True,text=True) if ws_pid else None
     ws.append({'elapsed':elapsed,'ps_cpu_percent_and_rss_kib':sample.stdout.strip() if sample and sample.returncode==0 else None});next_ws+=1
@@ -77,7 +77,7 @@ for backend in (['custom','system'] if args.backend=='both' else [args.backend])
    return {'duration_seconds':b-a,'cpu_median_one_core_percent':statistics.median(float(r['cpu_percent_one_core']) for r in rows),
     'rss_first_mib':int(rows[0]['resident_bytes'])/1048576,'rss_last_mib':int(rows[-1]['resident_bytes'])/1048576,
     'rss_peak_mib':max(int(r['resident_bytes']) for r in rows)/1048576,'overlay_or_custom_command_gpu_p95_ms':sorted(gpu)[math.ceil(len(gpu)*.95)-1] if gpu else None,'presented_fps':len(gpu)/(b-a)}
-  result={'scope':'LaunchServices_system_and_source_custom_functional_checks','checks':checks,'off':segment(5,12),'on':segment(16,30),'windowserver_process_observations':ws,'total_gpu_power':'unmeasured','observations':observations}
+  result={'scope':'LaunchServices_system_and_source_custom_functional_checks','checks':checks,'resource_measurement':not args.functional_only,'off':None if args.functional_only else segment(5,12),'on':None if args.functional_only else segment(16,30),'windowserver_process_observations':ws,'total_gpu_power':'unmeasured','observations':observations}
   (case/'summary.json').write_text(json.dumps(result,indent=2));results[backend]=result
   print('RESULT',backend,json.dumps({k:v for k,v in result.items() if k in ['checks','off','on']}),flush=True)
   if not all(checks.values()):raise RuntimeError('Functional failures '+str([k for k,v in checks.items() if not v]))

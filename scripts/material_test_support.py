@@ -33,7 +33,7 @@ def srgb(path):
         return ImageCms.profileToProfile(image.convert('RGB'),ImageCms.ImageCmsProfile(BytesIO(profile)),ImageCms.createProfile('sRGB'),outputMode='RGB')
     return image.convert('RGB')
 
-def screenshot(case,name='window'):
+def screenshot(case,name='window',padding=0):
     ready=wait_json(case/'ready.json')
     path=case/(name+'.png')
     # A window-only capture omits behindWindow's compositor backdrop. Capture
@@ -43,7 +43,9 @@ def screenshot(case,name='window'):
     x,y,w,h=map(float,re.findall(r'-?[\d.]+',frame))
     env=wait_json(case/'environment.json')
     sx,sy,sw,sh=map(float,re.findall(r'-?[\d.]+',env['screens'][0]['frame_pt']))
-    rect=f'{round(x)},{round(sy+sh-y-h)},{round(w)},{round(h)}'
+    left=max(sx,x-padding);right=min(sx+sw,x+w+padding)
+    bottom=max(sy,y-padding);top=min(sy+sh,y+h+padding)
+    rect=f'{round(left)},{round(sy+sh-top)},{round(right-left)},{round(top-bottom)}'
     subprocess.run(['/usr/sbin/screencapture','-x','-R',rect,str(path)],check=True)
     return srgb(path)
 

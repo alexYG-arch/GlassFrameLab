@@ -14,7 +14,8 @@ try:
  for target in [1.5,2.05,3.15,3.4,4.65,6.2,7.15,9.5,10.25,11.5]:
   while time.monotonic()<anchor+target:time.sleep(.015)
   geometry=wait_json(case/'geometry-latest.json')
-  im=screenshot(case,f'motion-{target}');images.append((f'{target}s {geometry["actual_size_px"]}',im))
+  # Include room for geometry changing while the screen-capture command runs.
+  im=screenshot(case,f'motion-{target}',padding=100);images.append((f'{target}s {geometry["actual_size_px"]}',im))
   rows.append({'time':target,'geometry':geometry,'image_size':im.size})
  wait_json(case/'termination.json',timeout=8)
  final=wait_json(case/'motion-settled.json')
