@@ -87,7 +87,8 @@ final class FrameSurface: NSView {
     private(set) var systemMaterialActive = false
     private var systemView: NSView?
     private weak var systemOverlay: NSView?
-    private weak var systemRim: NSView?
+    private weak var systemRim: StaticGlassRim?
+    private var systemShadow: StaticGlassOuterShadow?
     private(set) var systemMaterialName = "uninitialized"
     var dragActivity: ((Bool) -> Void)?
     var flowToggle: (() -> Void)?
@@ -138,6 +139,9 @@ final class FrameSurface: NSView {
         carrierVisible = false
         systemMaterialActive = true
         if systemView == nil {
+            let shadow = StaticGlassOuterShadow(frame: bounds)
+            addSubview(shadow, positioned: .below, relativeTo: subviews.first)
+            systemShadow = shadow
             let effect: NSView
             if #available(macOS 26.0, *) {
                 // Clear glass retains blurred detail on sparse/light backgrounds.
@@ -146,10 +150,7 @@ final class FrameSurface: NSView {
                 glass.style = .clear
                 let host = NSView(frame: .zero)
                 glass.contentView = host
-                let rim = NSView(frame: .zero)
-                rim.wantsLayer = true
-                rim.layer?.borderWidth = 0.55
-                rim.layer?.borderColor = NSColor.white.withAlphaComponent(0.4).cgColor
+                let rim = StaticGlassRim(frame: .zero)
                 host.addSubview(rim)
                 systemRim = rim
                 effect = glass
@@ -164,7 +165,7 @@ final class FrameSurface: NSView {
                 effect = hud
                 systemMaterialName = "hudWindow_compatibility"
             }
-            addSubview(effect, positioned: .below, relativeTo: subviews.first)
+            addSubview(effect, positioned: .above, relativeTo: shadow)
             systemView = effect
         }
         needsLayout = true
@@ -199,18 +200,21 @@ final class FrameSurface: NSView {
         let glass = window?.glassRectInWindow ?? bounds
         effect.frame = glass
         let radius = min((window as? FramePanel)?.style.cornerRadius ?? 16, min(glass.width, glass.height)/2)
+        systemShadow?.frame = bounds
+        systemShadow?.cornerRadius = radius
+        systemShadow?.extent = (window as? FramePanel)?.shadowInset ?? 6
         if #available(macOS 26.0, *), let clearGlass = effect as? NSGlassEffectView {
             clearGlass.cornerRadius = radius
             // Keep shader coordinates in full-window space, including shadow inset.
             clearGlass.contentView?.frame = clearGlass.bounds
             systemRim?.frame = clearGlass.bounds
-            systemRim?.layer?.cornerRadius = radius
+            systemRim?.cornerRadius = radius
             systemOverlay?.frame = NSRect(x: -glass.minX, y: -glass.minY, width: bounds.width, height: bounds.height)
             // Keep the explicit white outline; native highlights alone are too weak.
             return
         }
         effect.layer?.cornerRadius = radius
-        effect.layer?.borderWidth = 0.55
+        effect.layer?.borderWidth = systemMaterialActive ? 0.85 : 0.55
         effect.layer?.borderColor = NSColor.white.withAlphaComponent(0.4).cgColor
     }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -243,11 +247,13 @@ final class FrameSurface: NSView {
         let path = NSBezierPath(roundedRect: glass.insetBy(dx: 0.5, dy: 0.5), xRadius: radius, yRadius: radius)
         if fallbackActive || systemMaterialActive {
             NSGraphicsContext.saveGraphicsState()
-            let shadow = NSShadow()
-            shadow.shadowOffset = .zero
-            shadow.shadowBlurRadius = (window as? FramePanel)?.shadowInset ?? 6
-            shadow.shadowColor = NSColor.black.withAlphaComponent(0.14)
-            shadow.set()
+            if !systemMaterialActive {
+                let shadow = NSShadow()
+                shadow.shadowOffset = .zero
+                shadow.shadowBlurRadius = (window as? FramePanel)?.shadowInset ?? 6
+                shadow.shadowColor = NSColor.black.withAlphaComponent(0.14)
+                shadow.set()
+            }
             // Do not put an opaque plate behind the native fallback material.
             NSColor.black.withAlphaComponent(0.04).setFill()
             path.fill()
