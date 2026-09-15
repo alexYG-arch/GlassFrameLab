@@ -15,6 +15,11 @@ import LabSupport
     private var captureProbe: CaptureProbe?
     private var glassRenderer: GlassRenderer?
     private var realtimeController: RealtimeGlassController?
+    private var systemController: SystemMaterialController?
+    private var flowRuntime: (any FlowRuntime)? {
+        if let realtimeController { return realtimeController }
+        return systemController
+    }
     private var compatibilityProbe: CompatibilityProbe?
     private var upgradeObservations: [[String: Any]] = []
     private var permissionNoticeShown = false
@@ -28,14 +33,15 @@ import LabSupport
         do {
             installMenu()
             let mode = options.baseline ? "baseline_no_window" : (options.calibration ? (options.animate ? "animated_test_window" : "static_test_window") : (options.realtime ? "realtime_glass" : "frame_carrier"))
-            try diagnostics.writeJSON(Diagnostics.environment(mode: mode), name: "environment.json")
+            let effectiveMode = options.materialBackend == .system ? "system_material" : mode
+            try diagnostics.writeJSON(Diagnostics.environment(mode: effectiveMode), name: "environment.json")
             if let output = options.output { try JSONEncoder().encode(options.style).write(to: output.appendingPathComponent("style.json"), options: .atomic) }
             if !options.baseline {
                 if options.calibration { showTestWindow() }
                 else { try showFrame() }
             }
             try diagnostics.writeJSON([
-                "event": "application_ready", "mode": mode,
+                "event": "application_ready", "mode": effectiveMode,
                 "measurement_start_uptime": diagnostics.start,
                 "window_number": window?.windowNumber ?? -1,
                 "content_size_pt": window.map { NSStringFromSize($0.glassFrame.size) } ?? "none",
@@ -45,7 +51,8 @@ import LabSupport
                 "panel_size_px": window.map { NSStringFromSize($0.convertToBacking($0.contentLayoutRect).size) } ?? "none",
                 "glass_frame_pt": window.map { NSStringFromRect($0.glassFrame) } ?? "none",
                 "screen_capture_enabled": false,
-                "capture_requested": options.captureProbe || options.glassPreview || options.realtime
+                "backend": options.materialBackend.rawValue,
+                "capture_requested": options.materialBackend == .custom && (options.captureProbe || options.glassPreview || options.realtime)
             ], name: "ready.json")
             sampleTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 // This timer is installed on the application's main run loop.
@@ -56,6 +63,13 @@ import LabSupport
                 if let captureService = self.captureService {
                     do { try self.diagnostics.writeJSON(captureService.snapshot(), name: "capture-latest.json") }
                     catch { self.fail(error) }
+                }
+                if let system = self.systemController {
+                    system.tick()
+                    do {
+                        if let renderer = system.renderer { try self.diagnostics.recordFrames(renderer.metrics.drain()) }
+                        try self.diagnostics.writeJSON(system.snapshot(), name: "runtime-latest.json")
+                    } catch { self.fail(error) }
                 }
                 if let runtime = self.realtimeController {
                     runtime.tick()
@@ -75,14 +89,32 @@ import LabSupport
             if let duration = options.duration {
                 Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { _ in NSApp.terminate(nil) }
             }
-            print("READY mode=\(mode) window=\(window?.windowNumber ?? -1)")
+            print("READY mode=\(effectiveMode) window=\(window?.windowNumber ?? -1)")
             fflush(stdout)
             if options.windowProbe, let window {
                 lifecycleProbe = WindowLifecycleProbe(frame: window, diagnostics: diagnostics) { [weak self] error in self?.fail(error) }
                 lifecycleProbe?.start()
             }
             if options.geometryProbe { startGeometryProbe() }
-            if options.realtime, let window {
+            if options.realtime, options.materialBackend == .system, let window {
+                if let appearance = options.testAppearance {
+                    window.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
+                }
+                let runtime = SystemMaterialController(window:window,style:options.style,flow:options.borderFlow,forceMetalUnavailable:options.forceMetalUnavailable)
+                systemController = runtime
+                if options.testStaticFlow { runtime.freezePhaseForTesting(options.flowPhase) }
+                try diagnostics.writeJSON(runtime.snapshot(),name:"runtime-latest.json")
+                if options.testPermissionStatus {
+                    // Read-only test preflight. Never requests or modifies authorization.
+                    try diagnostics.writeJSON(["screen_capture_preflight":CGPreflightScreenCaptureAccess(),
+                        "bundle_id":Bundle.main.bundleIdentifier ?? "unbundled",
+                        "pid":ProcessInfo.processInfo.processIdentifier,
+                        "capture_service_initializations":LocalCaptureService.initializationCount],name:"permission-test.json")
+                }
+                if options.upgradeProbe { startUpgradeProbe() }
+                if options.motionProbe { startMotionProbe() }
+            }
+            if options.realtime, options.materialBackend == .custom, let window {
                 do {
                     if options.forceMetalUnavailable { throw OptionError.invalid("Injected Metal initialization failure") }
                     let runtime = try RealtimeGlassController(window: window, style: options.style, adaptive: options.adaptiveMaterial, borderFlow: options.borderFlow, forceAccessDenied: options.forcePermissionDenied) { [weak self] error in
@@ -233,7 +265,8 @@ import LabSupport
             requested: FramePixelSize(width: options.widthPixels, height: options.heightPixels),
             onCommit: { [weak self] result, count in
                 guard let self else { return }
-                if let runtime = self.realtimeController { runtime.updateGeometry() }
+                if let system = self.systemController { system.updateGeometry() }
+                else if let runtime = self.realtimeController { runtime.updateGeometry() }
                 else if let window = self.window { self.captureService?.requestGeometryUpdate(for: window) }
                 do {
                     try self.diagnostics.writeJSON([
@@ -243,22 +276,27 @@ import LabSupport
                         "size_limited": result.sizeLimited, "used_default_input": result.usedDefaultInput,
                         "elapsed_seconds": ProcessInfo.processInfo.systemUptime - self.diagnostics.start,
                         "commit_count": count
-                    ], name: self.options.upgradeProbe ? "geometry-latest.json" : String(format: "geometry-%03d.json", count))
+                    ], name: (self.options.upgradeProbe || self.options.materialBackend == .system) ? "geometry-latest.json" : String(format: "geometry-%03d.json", count))
                 } catch { self.fail(error) }
             }, onError: { [weak self] error in self?.fail(error) }, beginTransition: { [weak self] in
                 self?.realtimeController?.setFlowMotion("transition", active: true)
+                self?.systemController?.setFlowMotion("transition", active: true)
             }, prepareTransition: { [weak self] envelope, screen in
                 guard let runtime = self?.realtimeController else { return true }
                 return await runtime.prepareTransition(envelope: envelope, screen: screen)
-            }, finishTransition: { [weak self] in self?.realtimeController?.finishTransition() },
+            }, finishTransition: { [weak self] in
+                self?.realtimeController?.finishTransition(); self?.systemController?.finishTransition()
+            },
             stageGeometry: { [weak self] result, screen, apply, completion in
                 if let runtime = self?.realtimeController { runtime.stageGeometry(result.frame, screen: screen, apply: apply, completion: completion) }
+                else if let system = self?.systemController { system.stageGeometry(result.frame,screen:screen,apply:apply,completion:completion) }
                 else { apply(); completion(true) }
             })
         (panel.contentView as? FrameSurface)?.requestOrigin = { [weak self] point in self?.geometryController?.move(to: point) }
         if options.realtime {
             (panel.contentView as? FrameSurface)?.carrierVisible = false
-            (panel.contentView as? FrameSurface)?.showFallback(true)
+            if options.materialBackend == .system { (panel.contentView as? FrameSurface)?.showSystemMaterial() }
+            else { (panel.contentView as? FrameSurface)?.showFallback(true) }
         }
         panel.orderFrontRegardless()
     }
@@ -266,7 +304,9 @@ import LabSupport
     // Short resource samples plus actual surface/menu integration actions.
     // Background/visual coverage is exercised separately; this is not acceptance.
     private func startUpgradeProbe() {
-        guard let runtime = realtimeController, let window, let surface = window.contentView as? FrameSurface else { return }
+        guard let runtime = flowRuntime, let window, let surface = window.contentView as? FrameSurface else { return }
+        do { try diagnostics.writeJSON(["uptime":ProcessInfo.processInfo.systemUptime],name:"upgrade-probe-start.json") }
+        catch { fail(error); return }
         var off = runtime.borderFlow; off.enabled = false
         do { try runtime.applyBorderFlow(off) } catch { fail(error); return }
         func after(_ seconds: Double, _ action: @escaping @MainActor () -> Void) {
@@ -293,11 +333,31 @@ import LabSupport
         for (seconds, name) in [(5.0,"off-start"),(12,"off-end"),(16,"on-start"),(30,"on-end"),
                                 (34,"light"),(39,"dark"),(41.1,"drag-start"),(42.1,"drag-end"),
                                 (46.3,"resize-start"),(47.5,"resize-end"),(50,"resumed"),
-                                (53,"toggled-off"),(56,"toggled-on"),(62,"hidden"),(68,"shown"),
+                                (53,"toggled-off"),(56,"toggled-on"),(61,"hidden-start"),(62,"hidden"),(64,"hidden-end"),(68,"shown"),
                                 (71,"once-start"),(80,"once-finished")] {
             after(seconds) { record(name) }
         }
         after(14) { menuAction("流光效果") }
+        if systemController != nil {
+            after(33) { window.appearance = NSAppearance(named:.aqua) }
+            after(38) { window.appearance = NSAppearance(named:.darkAqua) }
+            after(57) { self.systemController?.setReduceMotionForTesting(true); record("reduce-motion-start") }
+            let workspace = NSWorkspace.shared.notificationCenter
+            after(57.2) { workspace.post(name:NSWorkspace.sessionDidResignActiveNotification,object:nil) }
+            after(57.3) { workspace.post(name:NSWorkspace.willSleepNotification,object:nil) }
+            after(57.5) { workspace.post(name:NSWorkspace.didWakeNotification,object:nil) }
+            after(57.7) { record("nested-pause") }
+            after(57.8) { window.appearance = NSAppearance(named:.aqua) }
+            after(58) { workspace.post(name:NSWorkspace.sessionDidBecomeActiveNotification,object:nil) }
+            after(58.3) { record("session-restored-motion-reduced") }
+            after(59) {
+                record("reduce-motion-end")
+                self.systemController?.setReduceMotionForTesting(nil)
+                window.appearance = NSAppearance(named:.darkAqua)
+            }
+            after(74) { window.appearance = NSAppearance(named:.aqua) }
+            after(81) { window.appearance = NSAppearance(named:.darkAqua); record("once-theme-change") }
+        }
         after(41) { surface.mouseDown(with: event(.leftMouseDown)) }
         after(41.25) { surface.mouseDragged(with: event(.leftMouseDragged, NSPoint(x: 70, y: 25))) }
         after(41.75) { surface.mouseDragged(with: event(.leftMouseDragged, NSPoint(x: 50, y: 45))) }
@@ -396,6 +456,8 @@ import LabSupport
     }
 
     private func startMotionProbe() {
+        do { try diagnostics.writeJSON(["uptime":ProcessInfo.processInfo.systemUptime],name:"motion-probe-start.json") }
+        catch { fail(error); return }
         func after(_ seconds: Double, _ action: @escaping @MainActor () -> Void) {
             Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in MainActor.assumeIsolated { action() } }
         }
@@ -412,7 +474,8 @@ import LabSupport
         }
         after(6) { [weak self] in self?.geometryController?.request(FramePixelSize(width: 1600, height: 500), duration: 0.4) }
         after(7) { [weak self] in self?.geometryController?.request(.minimum, duration: 0.3) }
-        for (time, extent, sigma) in [(8.0, 10.0, 20.0), (8.5, 6.0, 12.0)] {
+        // These legacy style changes belong only to the custom backend.
+        for (time, extent, sigma) in (systemController == nil ? [(8.0, 10.0, 20.0), (8.5, 6.0, 12.0)] : []) {
             after(time) { [weak self] in
                 guard let self else { return }
                 var style = self.options.style; style.shadowExtent = extent; style.sigma = sigma
@@ -432,7 +495,7 @@ import LabSupport
     }
 
     private func recordRuntimeProbe(_ name: String) {
-        guard let runtime = realtimeController else { return }
+        guard let runtime = flowRuntime else { return }
         var values = runtime.snapshot()
         values["resident_bytes"] = Diagnostics.residentBytes()
         do { try diagnostics.writeJSON(values, name: name) }
@@ -487,7 +550,8 @@ import LabSupport
     }
 
     func windowDidChangeOcclusionState(_ notification: Notification) {
-        if let runtime = realtimeController { runtime.visibilityChanged() }
+        if let system = systemController { system.visibilityChanged() }
+        else if let runtime = realtimeController { runtime.visibilityChanged() }
         else if window?.isVisible != true { stopCaptureWhenHidden() }
     }
 
@@ -501,6 +565,15 @@ import LabSupport
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if let system = systemController {
+            Task { @MainActor in
+                await system.stop()
+                do { try self.diagnostics.writeJSON(system.snapshot(),name:"system-stop.json") }
+                catch { self.exitStatus = 2 }
+                NSApp.reply(toApplicationShouldTerminate:true)
+            }
+            return .terminateLater
+        }
         guard let capture = captureService, capture.needsStop || realtimeController?.renderer.inFlight == true else { return .terminateNow }
         Task { @MainActor in
             if let runtime = self.realtimeController { await runtime.stop() }
@@ -523,6 +596,7 @@ import LabSupport
         sampleTimer?.invalidate()
         do {
             if exitStatus == 0 { try diagnostics.sample(windowVisible: window?.isVisible == true) }
+            if let renderer = systemController?.renderer { try diagnostics.recordFrames(renderer.metrics.drain()) }
             if let runtime = realtimeController { try diagnostics.recordFrames(runtime.renderer.metrics.drain()) }
             try diagnostics.finish()
         } catch {
@@ -545,7 +619,7 @@ import LabSupport
 }
 
 if CommandLine.arguments.contains("--help") {
-    print("GlassFrameLab [--frame-carrier | --baseline | --calibration | --animate | --window-probe | --geometry-probe | --capture-probe | --glass-preview | --runtime-probe] [--border-flow | --flow-once] [--flow-style FILE.json] [--flow-phase 0...1] [--no-adaptive-material] [--upgrade-probe] [--test-corner] [--style FILE.json] [--style-probe] [--motion-probe | --motion-performance | --resize-performance] [--no-outer-glow] [--no-inner-glow] [--no-edge] [--sigma 0...40] [--foreground-probe] [--width-px N --height-px N] [--duration SECONDS] [--output DIRECTORY]")
+    print("GlassFrameLab [--material-backend custom|system] [--test-appearance light|dark] [--test-permission-status] [--test-static-flow] [--frame-carrier | --baseline | --calibration | --animate | --window-probe | --geometry-probe | --capture-probe | --glass-preview | --runtime-probe] [--border-flow | --flow-once] [--flow-style FILE.json] [--flow-phase 0...1] [--no-adaptive-material] [--upgrade-probe] [--test-corner] [--style FILE.json] [--style-probe] [--motion-probe | --motion-performance | --resize-performance] [--no-outer-glow] [--no-inner-glow] [--no-edge] [--sigma 0...40] [--foreground-probe] [--width-px N --height-px N] [--duration SECONDS] [--output DIRECTORY]")
     exit(0)
 }
 

@@ -1,9 +1,22 @@
 # GlassFrame Lab
 
-> **material 分支：PLAN_READY，系统后端尚未实现。** 当前执行依据为 [material 迁移计划 v1.0](docs/material系统材质迁移计划-v1.0.md)，包含 M00–M05、视觉取舍、正常 app 无权限验证和最小资源检查。[v0.1 评估](docs/系统材质分支评估-v0.1.md) 保留为背景。当前源码和默认后端仍为 v1.9.3；`main` 与现有应用包保持原样。
+> **material 分支：系统后端已实现，本机验证部分完成，尚未通过用户视觉选择。** 依据 [迁移计划 v1.0](docs/material系统材质迁移计划-v1.0.md)，进度及差异见 [实施记录](docs/material实施与验证记录-v1.0.md)。默认仍为 custom；main 与正式交付包保持原样。
 **历史基础版本按“带已知问题验收”闭合；当前 Light 仅柔光视觉 v1.9.3 已被用户采用并重新打包，正常 app 的屏幕录制授权恢复仍待验证。** 当前构建 9mXYWr 的正式拖动、两次缩放及最终视觉验收完成；最大尺寸 RSS 偏差按用户决定延期排查。见 [验收报告](docs/缩放CPU修复与最终验收-UP02.md) 和 [已知问题](docs/本机已知问题.md)。
 
 部署目标为 macOS 13 的自定义玻璃框体项目；本版实际验收限定为 Apple M4 / macOS 26.5.2 / 内置 2x 屏，其他系统及显示环境仍待验证。默认启动无系统装饰的实时玻璃框体，**本机升级已闭合：UP-02 为 CLOSED_WITH_KNOWN_ISSUE；U02-06 最大尺寸 RSS 偏差已接受并延期排查**。根因与截图见 [圆角毛边排查](docs/圆角毛边排查-WP07.md)，需求及工作包门禁见 [开发规约与工作包计划](开发规约与工作包计划.md)。
+
+## 系统后端开发入口
+
+```sh
+bash scripts/build_source.sh
+.build/release/GlassFrameLab --material-backend system
+# 显式开启流光；Light 只显示柔光，Dark 线与柔光同时显示。
+.build/release/GlassFrameLab --material-backend system --border-flow
+```
+
+system 不采屏，材质由系统合成；附加光效按应用/系统外观切换，不按窗后像素切换。正式打包流程仍保留 custom 默认值，不能将旧打包命令当作系统版交付。
+
+系统专项检查：`check_system_flow.py`（GPU 透明层）、`check_system_material.py base|visual`（真实系统底材/交叉外观）、`check_system_smoke.py`（有限功能及短资源）、`check_system_visual_edges.py`（整圈/Finder/故障）、`check_system_motion.py`（时钟对齐的运动截图）、`check_system_theme.py`（真实系统主题切换后恢复）。原始证据留临时目录，验收摘要见实施记录。
 
 ## 构建与运行
 

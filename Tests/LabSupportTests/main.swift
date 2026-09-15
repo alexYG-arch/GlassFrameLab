@@ -13,6 +13,26 @@ func expectInvalid(_ arguments: [String]) throws {
 }
 
 let checks: [(String, () throws -> Void)] = [
+    ("system route rejects capture and legacy probes before controller creation", {
+        let defaults = try LaunchOptions(arguments: [])
+        try expect(defaults.materialBackend == .custom, "Default changed")
+        let system = try LaunchOptions(arguments: ["--material-backend", "system", "--border-flow"])
+        try expect(system.realtime && system.borderFlow.enabled, "System flow unavailable")
+        for flag in ["--capture-probe", "--glass-preview", "--runtime-probe", "--style-probe", "--frame-carrier", "--baseline", "--test-permission-denied", "--no-adaptive-material"] {
+            try expectInvalid(["--material-backend", "system", flag, "--duration", "90"])
+        }
+        try expectInvalid(["--material-backend", "invalid"])
+        try expectInvalid(["--material-backend"])
+        try expectInvalid(["--test-appearance", "light", "--duration", "2"])
+        try expectInvalid(["--material-backend", "system", "--test-appearance", "light"])
+        let test = try LaunchOptions(arguments: ["--material-backend", "system", "--test-appearance", "dark", "--test-permission-status", "--duration", "2"])
+        try expect(test.testAppearance == "dark" && test.testPermissionStatus, "Finite system fixture rejected")
+        let motion = try LaunchOptions(arguments: ["--material-backend", "system", "--motion-probe", "--duration", "14"])
+        try expect(motion.motionProbe, "Shared native geometry probe rejected")
+        try expectInvalid(["--material-backend", "system", "--test-static-flow", "--duration", "2"])
+        let frozen = try LaunchOptions(arguments: ["--material-backend", "system", "--border-flow", "--test-static-flow", "--duration", "2"])
+        try expect(frozen.testStaticFlow && frozen.borderFlow.enabled, "Static visual fixture rejected")
+    }),
     ("flow freezes active time and resumes without catch-up", {
         var clock = BorderFlowClock()
         clock.setRunning(true, at: 10)

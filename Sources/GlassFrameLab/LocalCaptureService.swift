@@ -170,6 +170,7 @@ final class LatestCaptureOutput: NSObject, SCStreamOutput {
 }
 
 @MainActor final class LocalCaptureService: NSObject, SCStreamDelegate {
+    private(set) static var initializationCount = 0
     private(set) var state = "idle" {
         didSet { if state != oldValue { stateHandler?() } }
     }
@@ -196,6 +197,7 @@ final class LatestCaptureOutput: NSObject, SCStreamOutput {
     var needsStop: Bool { stream != nil || state == "starting" }
 
     init(sigma: Double = 12, forceAccessDenied: Bool = false) {
+        Self.initializationCount += 1
         self.sigma = sigma
         self.forceAccessDenied = forceAccessDenied
         super.init()

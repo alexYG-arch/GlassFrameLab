@@ -83,9 +83,13 @@ extension NSWindow {
 
 /// WP-01 window carrier only. Real captured/blurred material arrives in WP-04.
 final class FrameSurface: NSView {
+    var appearanceChanged: (() -> Void)?
+    private(set) var systemMaterialActive = false
+    private var systemView: PassiveVisualEffectView?
     var dragActivity: ((Bool) -> Void)?
     var flowToggle: (() -> Void)?
     var flowEnabled: (() -> Bool)?
+    var flowUnavailable = false
     var materialStatus: (() -> String)?
     var reconnectMaterial: (() -> Void)?
     var requestOrigin: ((NSPoint) -> Void)?
@@ -98,7 +102,7 @@ final class FrameSurface: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
     // Successful glass has no CPU-drawn carrier pixels. Drop the old carrier
     // backing content instead of asking AppKit to maintain a transparent image.
-    override var wantsUpdateLayer: Bool { !carrierVisible && !fallbackActive }
+    override var wantsUpdateLayer: Bool { !carrierVisible && !fallbackActive && !systemMaterialActive }
     override func updateLayer() {
         layer?.contents = nil
     }
@@ -106,7 +110,7 @@ final class FrameSurface: NSView {
         super.setFrameSize(newSize)
         // The successful Metal path only needs a cached transparent backing.
         // Carrier/fallback paths still redraw their size-dependent outline.
-        if carrierVisible || fallbackActive { needsDisplay = true }
+        if carrierVisible || fallbackActive || systemMaterialActive { needsDisplay = true }
     }
     func showFallback(_ active: Bool) {
         guard active != fallbackActive else { return }
@@ -126,16 +130,42 @@ final class FrameSurface: NSView {
         needsDisplay = true
     }
 
+    func showSystemMaterial() {
+        showFallback(false)
+        carrierVisible = false
+        systemMaterialActive = true
+        if systemView == nil {
+            let effect = PassiveVisualEffectView(frame: .zero)
+            effect.material = .hudWindow
+            effect.blendingMode = .behindWindow
+            effect.state = .active
+            effect.wantsLayer = true
+            effect.layer?.masksToBounds = true
+            addSubview(effect, positioned: .below, relativeTo: subviews.first)
+            systemView = effect
+        }
+        needsLayout = true
+        needsDisplay = true
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsLayout = true
+        appearanceChanged?()
+    }
+
     override func layout() {
         super.layout()
         // A hidden fallback does not need geometry/vibrancy updates on every
         // Metal resize. showFallback marks layout dirty when it becomes active.
-        guard fallbackActive, let effect = fallbackView else { return }
+        guard let effect = systemMaterialActive ? systemView : (fallbackActive ? fallbackView : nil) else { return }
         let glass = window?.glassRectInWindow ?? bounds
         effect.frame = glass
         effect.layer?.cornerRadius = min((window as? FramePanel)?.style.cornerRadius ?? 16, min(glass.width, glass.height)/2)
         effect.layer?.borderWidth = 0.55
-        effect.layer?.borderColor = NSColor.white.withAlphaComponent(0.4).cgColor
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        effect.layer?.borderColor = (systemMaterialActive && !dark
+            ? NSColor.black.withAlphaComponent(0.12) : NSColor.white.withAlphaComponent(0.4)).cgColor
     }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) {
@@ -161,11 +191,11 @@ final class FrameSurface: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.clear.setFill()
         dirtyRect.fill(using: .copy)
-        guard carrierVisible || fallbackActive else { return }
+        guard carrierVisible || fallbackActive || systemMaterialActive else { return }
         let glass = window?.glassRectInWindow ?? bounds
         let radius = min((window as? FramePanel)?.style.cornerRadius ?? 16, min(glass.width, glass.height) / 2)
         let path = NSBezierPath(roundedRect: glass.insetBy(dx: 0.5, dy: 0.5), xRadius: radius, yRadius: radius)
-        if fallbackActive {
+        if fallbackActive || systemMaterialActive {
             NSGraphicsContext.saveGraphicsState()
             let shadow = NSShadow()
             shadow.shadowOffset = .zero
@@ -202,6 +232,12 @@ final class FrameSurface: NSView {
             let reconnect = NSMenuItem(title: "查看原因 / 重新连接背景…", action: #selector(reconnectBackground), keyEquivalent: "")
             reconnect.target = self
             menu.addItem(reconnect)
+            menu.addItem(.separator())
+        }
+        if flowUnavailable {
+            let item = NSMenuItem(title: "流光效果（不可用）",action:nil,keyEquivalent:"")
+            item.isEnabled = false
+            menu.addItem(item)
             menu.addItem(.separator())
         }
         if flowToggle != nil {

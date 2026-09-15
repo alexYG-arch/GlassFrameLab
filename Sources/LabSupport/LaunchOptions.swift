@@ -1,6 +1,12 @@
 import Foundation
 
+public enum MaterialBackend: String { case custom, system }
+
 public struct LaunchOptions {
+    public var materialBackend: MaterialBackend = .custom
+    public var testAppearance: String?
+    public var testPermissionStatus = false
+    public var testStaticFlow = false
     public var baseline = false
     public var animate = false
     public var calibration = false
@@ -36,6 +42,20 @@ public struct LaunchOptions {
         var index = 0
         while index < arguments.count {
             switch arguments[index] {
+            case "--material-backend":
+                index += 1
+                guard index < arguments.count, let backend = MaterialBackend(rawValue: arguments[index]) else {
+                    throw OptionError.invalid("--material-backend requires custom|system")
+                }
+                materialBackend = backend
+            case "--test-appearance":
+                index += 1
+                guard index < arguments.count, ["light", "dark"].contains(arguments[index]) else {
+                    throw OptionError.invalid("--test-appearance requires light|dark")
+                }
+                testAppearance = arguments[index]
+            case "--test-permission-status": testPermissionStatus = true
+            case "--test-static-flow": testStaticFlow = true
             case "--baseline": baseline = true
             case "--animate": animate = true
             case "--calibration": calibration = true
@@ -142,6 +162,13 @@ public struct LaunchOptions {
         if forceMetalUnavailable && (!realtime || duration == nil || compatibilityProbe || forcePermissionDenied) {
             throw OptionError.invalid("--test-metal-unavailable requires a finite isolated realtime run")
         }
+        if materialBackend == .system && (!realtime || runtimeProbe || styleProbe || motionPerformance || compatibilityProbe || forcePermissionDenied || !adaptiveMaterial) {
+            throw OptionError.invalid("system backend requires realtime mode; capture/legacy material probes are incompatible")
+        }
+        if (testAppearance != nil || testPermissionStatus || testStaticFlow) && (materialBackend != .system || duration == nil) {
+            throw OptionError.invalid("System test options require an explicit system backend and finite duration")
+        }
+        if testStaticFlow && !borderFlow.enabled { throw OptionError.invalid("--test-static-flow requires enabled flow") }
         borderFlow = try borderFlow.validated()
         if upgradeProbe && (!realtime || (duration ?? 0) < 85 || runtimeProbe || styleProbe || motionProbe || motionPerformance || compatibilityProbe) {
             throw OptionError.invalid("--upgrade-probe requires an isolated realtime run of at least 85 seconds")
