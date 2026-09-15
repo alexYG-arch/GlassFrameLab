@@ -1,5 +1,7 @@
 # GlassFrame Lab
 
+> **当前补充：白描边已恢复；用户拒绝清晰背景混入，通透度仍未解决。** 见 [v1.2 记录](docs/material描边恢复与通透度边界-v1.2.md)。
+
 > **material 分支：系统后端已实现，本机补测通过；两项真实辅助设置按用户决定延期，等待视觉选择。** 依据 [迁移计划 v1.0](docs/material系统材质迁移计划-v1.0.md)，进度及差异见 [实施记录](docs/material实施与验证记录-v1.0.md)。源码默认仍为 custom；独立 Material 应用包默认 system，main 与原 custom 包保持原样。
 **历史基础版本按“带已知问题验收”闭合；当前 Light 仅柔光视觉 v1.9.3 已被用户采用并重新打包，正常 app 的屏幕录制授权恢复仍待验证。** 当前构建 9mXYWr 的正式拖动、两次缩放及最终视觉验收完成；最大尺寸 RSS 偏差按用户决定延期排查。见 [验收报告](docs/缩放CPU修复与最终验收-UP02.md) 和 [已知问题](docs/本机已知问题.md)。
 
@@ -21,7 +23,7 @@ bash scripts/build_material.sh
 open build/GlassFrameLab-Material.app
 ```
 
-交付文件：[GlassFrameLab-Material.zip](build/GlassFrameLab-Material.zip)。版本 0.1.0 / build 3，独立应用标识 `local.uidev.GlassFrameLab.material`，无需屏幕录制权限，默认流光关闭、右键开启。ZIP 仅包含应用，不含 evidence。当前为本机 ad hoc 签名，未经 Developer ID 签名或 Apple 公证；其他机器的 Gatekeeper 分发体验未验证。运行链接指向临时目录，长期保留请使用 ZIP 解压应用。
+交付文件：[GlassFrameLab-Material.zip](build/GlassFrameLab-Material.zip)。版本 0.1.0 / build 4，独立应用标识 `local.uidev.GlassFrameLab.material`，无需屏幕录制权限，默认流光关闭、右键开启。ZIP 仅包含应用，不含 evidence。当前为本机 ad hoc 签名，未经 Developer ID 签名或 Apple 公证；其他机器的 Gatekeeper 分发体验未验证。运行链接指向临时目录，长期保留请使用 ZIP 解压应用。
 
 系统专项检查：`check_system_translucency.py`（macOS 26 稀疏细节透底与流光开关真实截图）、`check_system_flow.py`（GPU 透明层）、`check_system_material.py base|visual`（真实系统底材/交叉外观）、`check_system_smoke.py`（有限功能及短资源）、`check_system_visual_edges.py`（整圈/Finder/故障）、`check_system_motion.py`（时钟对齐的运动截图）、`check_system_theme.py`（真实系统主题切换后恢复）。原始证据留临时目录，验收摘要见实施记录。
 

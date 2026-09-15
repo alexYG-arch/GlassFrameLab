@@ -87,6 +87,7 @@ final class FrameSurface: NSView {
     private(set) var systemMaterialActive = false
     private var systemView: NSView?
     private weak var systemOverlay: NSView?
+    private weak var systemRim: NSView?
     private(set) var systemMaterialName = "uninitialized"
     var dragActivity: ((Bool) -> Void)?
     var flowToggle: (() -> Void)?
@@ -143,6 +144,14 @@ final class FrameSurface: NSView {
                 // HUD's stronger tint and blur made these scenes look opaque.
                 let glass = PassiveGlassEffectView(frame: .zero)
                 glass.style = .clear
+                let host = NSView(frame: .zero)
+                glass.contentView = host
+                let rim = NSView(frame: .zero)
+                rim.wantsLayer = true
+                rim.layer?.borderWidth = 0.55
+                rim.layer?.borderColor = NSColor.white.withAlphaComponent(0.4).cgColor
+                host.addSubview(rim)
+                systemRim = rim
                 effect = glass
                 systemMaterialName = "glass_clear"
             } else {
@@ -172,9 +181,8 @@ final class FrameSurface: NSView {
         if #available(macOS 26.0, *), let glass = systemView as? NSGlassEffectView {
             // NSGlassEffectView guarantees foreground ordering for contentView.
             // A sibling Metal view can be composited underneath native glass.
-            let host = NSView(frame: glass.bounds)
-            glass.contentView = host
-            host.addSubview(overlay)
+            // The static white rim is independent of the optional Metal renderer.
+            glass.contentView?.addSubview(overlay, positioned: .above, relativeTo: systemRim)
             overlay.autoresizingMask = []
             systemOverlay = overlay
             needsLayout = true
@@ -195,15 +203,15 @@ final class FrameSurface: NSView {
             clearGlass.cornerRadius = radius
             // Keep shader coordinates in full-window space, including shadow inset.
             clearGlass.contentView?.frame = clearGlass.bounds
+            systemRim?.frame = clearGlass.bounds
+            systemRim?.layer?.cornerRadius = radius
             systemOverlay?.frame = NSRect(x: -glass.minX, y: -glass.minY, width: bounds.width, height: bounds.height)
-            // Native glass owns its rim. An additional layer border would double it.
+            // Keep the explicit white outline; native highlights alone are too weak.
             return
         }
         effect.layer?.cornerRadius = radius
         effect.layer?.borderWidth = 0.55
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        effect.layer?.borderColor = (systemMaterialActive && !dark
-            ? NSColor.black.withAlphaComponent(0.12) : NSColor.white.withAlphaComponent(0.4)).cgColor
+        effect.layer?.borderColor = NSColor.white.withAlphaComponent(0.4).cgColor
     }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) {

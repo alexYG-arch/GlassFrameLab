@@ -1,6 +1,6 @@
 # material 系统材质迁移计划 v1.0
 
-日期：2026-09-14；执行更新：2026-09-15。状态：**LOCAL_CHECKS_PASSED_WITH_DEFERRED_TESTS / WAITING_USER_VISUAL**。
+日期：2026-09-14；执行更新：2026-09-15。状态：**WHITE_RIM_FIXED / TRANSLUCENCY_UNRESOLVED / WAITING_USER_VISUAL**。用户已拒绝清晰背景混入；保留纯原生模糊。见 [v1.2 记录](material描边恢复与通透度边界-v1.2.md)。
 
 用户于 2026-09-15 明确要求执行本计划，M00–M04 已获实施授权。源码默认入口和 main 保持不变；用户后续明确授权独立 Material 打包及推送，包默认 system，原 custom 交付包不变。实施分支为 `material`，独立目录为 `branches/system-material`；计划前提交为 `81ec40b`。已确认的自定义视觉基线固定为 `main` 的 `70ab8ad`（Light 仅柔光 v1.9.3），当前发布的应用 ZIP 不变。
 
@@ -46,7 +46,7 @@
 
 ### 3.2 底材与装饰
 
-原生材质置于框体内部，由系统合成窗后内容；macOS 26 使用 Clear Glass 自有圆角与边缘，不额外叠加 layer 描边；HUD 兼容路径继续使用 behind-window 合成。主体以外保留透明留白。系统视图不接收拖动和右键事件，继续由 `FrameSurface` 承担交互。
+原生材质置于框体内部，由系统合成窗后内容；macOS 26 使用 Clear Glass 自有圆角，另保留独立白色细描边（0.55 pt / alpha 0.40），不得再以原生高光替代；HUD 兼容路径继续使用 behind-window 合成。主体以外保留透明留白。系统视图不接收拖动和右键事件，继续由 `FrameSurface` 承担交互。
 
 先单独验证底材、基础外扩散与边缘，再按差异补充自定义深度装饰。原有 `.hudWindow` fallback 只作为起点，不沿用其“无权限导致降级”的状态和所有视觉参数。禁止在系统材质上方放置不透明填充、截屏快照或另一次背景模糊。
 
