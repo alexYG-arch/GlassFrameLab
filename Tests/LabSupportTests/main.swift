@@ -13,6 +13,16 @@ func expectInvalid(_ arguments: [String]) throws {
 }
 
 let checks: [(String, () throws -> Void)] = [
+    ("material bundle default preserves explicit backend override", {
+        let bundled = try LaunchOptions(arguments: [], defaultBackend: .system)
+        try expect(bundled.materialBackend == .system && !bundled.borderFlow.enabled, "Material bundle defaults incorrect")
+        let override = try LaunchOptions(arguments: ["--material-backend", "custom"], defaultBackend: .system)
+        try expect(override.materialBackend == .custom, "Explicit backend ignored")
+        do {
+            _ = try LaunchOptions(arguments: ["--capture-probe"], defaultBackend: .system)
+        } catch is OptionError { return }
+        throw CheckFailure.failed("Bundled system route accepted a capture probe")
+    }),
     ("system route rejects capture and legacy probes before controller creation", {
         let defaults = try LaunchOptions(arguments: [])
         try expect(defaults.materialBackend == .custom, "Default changed")

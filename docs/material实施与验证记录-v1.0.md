@@ -2,7 +2,7 @@
 
 2026-09-15。状态：LOCAL_CHECKS_PASSED_WITH_DEFERRED_TESTS；M05 用户视觉选择未确认。
 
-执行依据：[迁移计划 v1.0](material系统材质迁移计划-v1.0.md)。分支 material，实施前 bdd0ee6，代码实现提交 f417d88；custom 基线 70ab8ad。默认仍为 custom，不修改 main、正式应用或 ZIP。
+执行依据：[迁移计划 v1.0](material系统材质迁移计划-v1.0.md)。分支 material，实施前 bdd0ee6，代码实现提交 f417d88；custom 基线 70ab8ad。源码默认仍为 custom；2026-09-15 用户另行授权 Material 打包及推送，独立 Material 包默认 system，不修改 main 或原 custom ZIP。
 
 ## 实现边界
 
@@ -77,6 +77,23 @@ WindowServer 的 `ps` CPU 快照中位数：custom 关闭/开启 1.0/16.95%，sy
 
 用户明确决定：“这两项保留未验证，先看视觉”。真实系统“减少动态效果”和“降低透明度”开关因此延期，继续写为未验证；已有减少动态效果注入检查不能替代它们。`check_system_theme.py --accessibility` 已提供复核入口，但本轮不运行、不更改这两个设置。
 
-当前约定范围的其余功能与视觉材料已补齐，进入 M05 用户视觉选择。没有宣布产品验收 CLOSED，没有合并 main、切换发布默认或重新制作交付包。macOS 13、外接/1x、总 GPU 功耗及长期内存仍在原未验证范围；custom U02-06 未解决。
+当前约定范围的其余功能与视觉材料已补齐，进入 M05 用户视觉选择。没有宣布产品验收 CLOSED，没有合并 main 或替换 custom 发布默认；后续独立 Material 打包授权与结果见下节。macOS 13、外接/1x、总 GPU 功耗及长期内存仍在原未验证范围；custom U02-06 未解决。
 
 本次脚本结束后，测试 app、背景夹具和临时电源断言均已退出。保留图片与 JSON 约 0.84 MB，低于 2 MB 目标。
+
+
+## Material 应用 ZIP（2026-09-15 用户授权）
+
+用户指令：“material打包zip，同时推送git”。新增 `scripts/build_material.sh`，生成 `build/GlassFrameLab-Material.zip`（330,350 bytes），只含应用；不含 evidence、源码或构建缓存。源码/文档提交到 material，ZIP 留本地交付，不加入 Git。
+
+独立包版本 0.1.0 / build 2，标识 `local.uidev.GlassFrameLab.material`。包内 `GlassFrameMaterialBackend=system` 决定正常启动后端；源码无包配置仍默认 custom，显式 CLI 参数优先。默认流光关闭，右键可开启或关闭应用。没有录屏用途声明，system 不采屏。本机 ad hoc 签名，未经 Developer ID 签名或 Apple 公证。
+
+本次验证：
+
+- 26/26 LabSupport、6/6 lifecycle 检查通过；新增包默认值、显式覆盖、禁止采集探针检查。
+- ZIP CRC、相对安全路径及排除项检查通过；归档内可执行文件与签名后的原包逐字节一致。
+- ZIP 解压后的应用严格签名检查通过。
+- 经 LaunchServices 打开解压包，**没有传入 backend 参数**，只附加 10 秒期限和诊断输出。实际 backend=system、material_visible=true、desktop_blockers=[]；录屏预检 false、采集服务初始化计数 0、默认流光 false，正常退出 exit_status=0。
+- 未重复 RSS 性能对照。当前改动仅选择包默认后端，视觉渲染代码未改；此前视觉与功能结果继续按其原有适用范围记录。
+
+本地详细收据：`build/material-package-verification.json`。真实“减少动态效果 / 降低透明度”、macOS 13、外接/1x 等仍未验证；此次打包不代表这些项目通过，也不代表 M05 最终视觉选择或合并 main。

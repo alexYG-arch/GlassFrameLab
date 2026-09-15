@@ -624,7 +624,10 @@ if CommandLine.arguments.contains("--help") {
 }
 
 do {
-    let options = try LaunchOptions(arguments: Array(CommandLine.arguments.dropFirst()))
+    // Dedicated app bundles select their backend; explicit CLI options still win.
+    let bundledBackend = (Bundle.main.object(forInfoDictionaryKey: "GlassFrameMaterialBackend") as? String)
+        .flatMap(MaterialBackend.init(rawValue:)) ?? .custom
+    let options = try LaunchOptions(arguments: Array(CommandLine.arguments.dropFirst()), defaultBackend: bundledBackend)
     // The executable entry point runs on the main thread, before AppKit's run loop.
     try MainActor.assumeIsolated {
     let delegate = try LabDelegate(options: options)

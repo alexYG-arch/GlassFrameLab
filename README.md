@@ -1,6 +1,6 @@
 # GlassFrame Lab
 
-> **material 分支：系统后端已实现，本机补测通过；两项真实辅助设置按用户决定延期，等待视觉选择。** 依据 [迁移计划 v1.0](docs/material系统材质迁移计划-v1.0.md)，进度及差异见 [实施记录](docs/material实施与验证记录-v1.0.md)。默认仍为 custom；main 与正式交付包保持原样。
+> **material 分支：系统后端已实现，本机补测通过；两项真实辅助设置按用户决定延期，等待视觉选择。** 依据 [迁移计划 v1.0](docs/material系统材质迁移计划-v1.0.md)，进度及差异见 [实施记录](docs/material实施与验证记录-v1.0.md)。源码默认仍为 custom；独立 Material 应用包默认 system，main 与原 custom 包保持原样。
 **历史基础版本按“带已知问题验收”闭合；当前 Light 仅柔光视觉 v1.9.3 已被用户采用并重新打包，正常 app 的屏幕录制授权恢复仍待验证。** 当前构建 9mXYWr 的正式拖动、两次缩放及最终视觉验收完成；最大尺寸 RSS 偏差按用户决定延期排查。见 [验收报告](docs/缩放CPU修复与最终验收-UP02.md) 和 [已知问题](docs/本机已知问题.md)。
 
 部署目标为 macOS 13 的自定义玻璃框体项目；本版实际验收限定为 Apple M4 / macOS 26.5.2 / 内置 2x 屏，其他系统及显示环境仍待验证。默认启动无系统装饰的实时玻璃框体，**本机升级已闭合：UP-02 为 CLOSED_WITH_KNOWN_ISSUE；U02-06 最大尺寸 RSS 偏差已接受并延期排查**。根因与截图见 [圆角毛边排查](docs/圆角毛边排查-WP07.md)，需求及工作包门禁见 [开发规约与工作包计划](开发规约与工作包计划.md)。
@@ -14,7 +14,14 @@ bash scripts/build_source.sh
 .build/release/GlassFrameLab --material-backend system --border-flow
 ```
 
-system 不采屏，材质由系统合成；附加光效按应用/系统外观切换，不按窗后像素切换。正式打包流程仍保留 custom 默认值，不能将旧打包命令当作系统版交付。
+system 不采屏，材质由系统合成；附加光效按应用/系统外观切换，不按窗后像素切换。源码和旧 `build.sh` 仍保留 custom 默认值。Material 专用包使用以下命令，双击即进入 system：
+
+```sh
+bash scripts/build_material.sh
+open build/GlassFrameLab-Material.app
+```
+
+交付文件：[GlassFrameLab-Material.zip](build/GlassFrameLab-Material.zip)。版本 0.1.0 / build 2，独立应用标识 `local.uidev.GlassFrameLab.material`，无需屏幕录制权限，默认流光关闭、右键开启。ZIP 仅包含应用，不含 evidence。当前为本机 ad hoc 签名，未经 Developer ID 签名或 Apple 公证；其他机器的 Gatekeeper 分发体验未验证。运行链接指向临时目录，长期保留请使用 ZIP 解压应用。
 
 系统专项检查：`check_system_flow.py`（GPU 透明层）、`check_system_material.py base|visual`（真实系统底材/交叉外观）、`check_system_smoke.py`（有限功能及短资源）、`check_system_visual_edges.py`（整圈/Finder/故障）、`check_system_motion.py`（时钟对齐的运动截图）、`check_system_theme.py`（真实系统主题切换后恢复）。原始证据留临时目录，验收摘要见实施记录。
 

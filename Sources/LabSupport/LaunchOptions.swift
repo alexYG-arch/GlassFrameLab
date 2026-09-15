@@ -38,7 +38,8 @@ public struct LaunchOptions {
     public var duration: Double?
     public var output: URL?
 
-    public init(arguments: [String]) throws {
+    public init(arguments: [String], defaultBackend: MaterialBackend = .custom) throws {
+        materialBackend = defaultBackend
         var index = 0
         while index < arguments.count {
             switch arguments[index] {

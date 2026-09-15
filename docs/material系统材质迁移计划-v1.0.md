@@ -2,7 +2,7 @@
 
 日期：2026-09-14；执行更新：2026-09-15。状态：**LOCAL_CHECKS_PASSED_WITH_DEFERRED_TESTS / WAITING_USER_VISUAL**。
 
-用户于 2026-09-15 明确要求执行本计划，M00–M04 已获实施授权。默认入口、main 和正式交付包仍保持不变。实施分支为 `material`，独立目录为 `branches/system-material`；计划前提交为 `81ec40b`。已确认的自定义视觉基线固定为 `main` 的 `70ab8ad`（Light 仅柔光 v1.9.3），当前发布的应用 ZIP 不变。
+用户于 2026-09-15 明确要求执行本计划，M00–M04 已获实施授权。源码默认入口和 main 保持不变；用户后续明确授权独立 Material 打包及推送，包默认 system，原 custom 交付包不变。实施分支为 `material`，独立目录为 `branches/system-material`；计划前提交为 `81ec40b`。已确认的自定义视觉基线固定为 `main` 的 `70ab8ad`（Light 仅柔光 v1.9.3），当前发布的应用 ZIP 不变。
 
 本计划优先于 [v0.1 评估](系统材质分支评估-v0.1.md) 中的建议，保留其成本与差异分析。用户在补测后决定真实“减少动态效果／降低透明度”两项保留未验证、先看视觉。执行结果与未验证项见 [material 实施与验证记录 v1.0](material实施与验证记录-v1.0.md)；文档、自动检查与用户视觉选择分别记录。
 
@@ -38,7 +38,7 @@
 
 ### 3.1 后端入口
 
-实现入口为 `--material-backend custom|system`。实施期间默认保持 `custom`，系统测试显式选择 `system`；仅完成本计划不切换交付默认值。是否在 material 交付包默认启用 system，留到 M05 用户选择后决定。
+实现入口为 `--material-backend custom|system`。实施期间默认保持 `custom`，系统测试显式选择 `system`；仅完成本计划不切换交付默认值。2026-09-15 用户另行要求 Material 打包并推送：本次独立 Material 包默认 system；这项授权不延伸为合并 main 或所有未验证项通过。
 
 在创建运行控制器之前解析后端。system 路径直接创建独立系统控制器，不先创建 `RealtimeGlassController` 再制造拒绝权限来进入 fallback。system 与 `--capture-probe`、`--glass-preview` 等采集诊断参数冲突时明确拒绝，不静默采屏。
 
@@ -130,7 +130,7 @@ M01 完成后立即展示真实底材差异；用户尚未回复时可继续与�
 
 M04 需要一次测试用临时 `.app`，否则无法排除源码进程继承工具权限造成的假通过。计划使用独立身份 `local.uidev.GlassFrameLab.material`，显式启动 system 后端，正常打开后有限时退出；不重置用户现有 TCC 权限、不代替用户授权。
 
-该临时 app 只用于本机测试，放在临时/分支构建目录；不运行会更新主目录交付物的打包流程，不生成项目 ZIP，不安装到 Applications。正式分发、签名公证及交付包更新均不包含在本计划的默认执行范围。
+该临时 app 只用于本机测试，放在临时/分支构建目录；不运行会更新主目录交付物的打包流程，不生成项目 ZIP，不安装到 Applications。签名公证与正式跨机分发不包含在本计划默认范围。2026-09-15 用户另行授权独立 Material ZIP，本机 ad hoc 签名打包结果见实施记录，原 custom 包保持原样。
 
 ## 6. 性能与证据成本
 
