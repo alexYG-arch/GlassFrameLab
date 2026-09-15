@@ -58,7 +58,7 @@ extension RealtimeGlassController: FlowRuntime {}
             let overlay = try SystemFlowRenderer(frame: window.contentView!.bounds)
             renderer = overlay
             overlay.view.isHidden = true
-            surface?.addSubview(overlay.view)
+            surface?.installSystemOverlay(overlay.view)
         } catch { decorationError = String(describing: error); surface?.flowUnavailable = true }
         surface?.appearanceChanged = { [weak self] in self?.appearanceChanged() }
         surface?.dragActivity = { [weak self] in self?.setFlowMotion("drag",active: $0) }
@@ -226,7 +226,7 @@ extension RealtimeGlassController: FlowRuntime {}
     func snapshot() -> [String: Any] {
         ["backend":"system", "appearance_source":"effectiveAppearance", "appearance_light_weight":light,
          "appearance_target":themeTarget, "last_presented_light_weight":renderer?.lastPresentedLight ?? -1, "material_visible":available && surface?.systemMaterialActive == true,
-         "native_material":"hudWindow", "fallback_reason":"none", "capture_service_initializations":LocalCaptureService.initializationCount,
+         "native_material":surface?.systemMaterialName ?? "uninitialized", "fallback_reason":"none", "capture_service_initializations":LocalCaptureService.initializationCount,
          "flow_enabled":borderFlow.enabled, "flow_phase":clock.phase(at:now,period:borderFlow.period),
          "flow_running":clock.isRunning, "flow_finished":clock.finished(at:now,style:borderFlow),
          "flow_motion_reasons":motion.sorted(), "flow_visible":renderer?.view.isHidden == false,

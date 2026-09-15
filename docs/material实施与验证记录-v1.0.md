@@ -1,6 +1,6 @@
 # material 实施与验证记录 v1.0
 
-2026-09-15。状态：LOCAL_CHECKS_PASSED_WITH_DEFERRED_TESTS；M05 用户视觉选择未确认。
+2026-09-15。HUD 初版功能通过，但用户反馈通透感不合格；当前转入 [透明度修复 v1.1](material透明度修复-v1.1.md)。下列 HUD 数据保留为历史记录，不代表 Clear Glass 当前构建验证。M05 用户视觉选择未确认。
 
 执行依据：[迁移计划 v1.0](material系统材质迁移计划-v1.0.md)。分支 material，实施前 bdd0ee6，代码实现提交 f417d88；custom 基线 70ab8ad。源码默认仍为 custom；2026-09-15 用户另行授权 Material 打包及推送，独立 Material 包默认 system，不修改 main 或原 custom ZIP。
 

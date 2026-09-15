@@ -14,16 +14,16 @@ bash scripts/build_source.sh
 .build/release/GlassFrameLab --material-backend system --border-flow
 ```
 
-system 不采屏，材质由系统合成；附加光效按应用/系统外观切换，不按窗后像素切换。源码和旧 `build.sh` 仍保留 custom 默认值。Material 专用包使用以下命令，双击即进入 system：
+system 不采屏，macOS 26 使用 Clear Glass，旧系统保留更厚的 HUD 兼容材质；[透明度修复记录](docs/material透明度修复-v1.1.md)说明视觉差异。材质由系统合成；附加光效按应用/系统外观切换，不按窗后像素切换。源码和旧 `build.sh` 仍保留 custom 默认值。Material 专用包使用以下命令，双击即进入 system：
 
 ```sh
 bash scripts/build_material.sh
 open build/GlassFrameLab-Material.app
 ```
 
-交付文件：[GlassFrameLab-Material.zip](build/GlassFrameLab-Material.zip)。版本 0.1.0 / build 2，独立应用标识 `local.uidev.GlassFrameLab.material`，无需屏幕录制权限，默认流光关闭、右键开启。ZIP 仅包含应用，不含 evidence。当前为本机 ad hoc 签名，未经 Developer ID 签名或 Apple 公证；其他机器的 Gatekeeper 分发体验未验证。运行链接指向临时目录，长期保留请使用 ZIP 解压应用。
+交付文件：[GlassFrameLab-Material.zip](build/GlassFrameLab-Material.zip)。版本 0.1.0 / build 3，独立应用标识 `local.uidev.GlassFrameLab.material`，无需屏幕录制权限，默认流光关闭、右键开启。ZIP 仅包含应用，不含 evidence。当前为本机 ad hoc 签名，未经 Developer ID 签名或 Apple 公证；其他机器的 Gatekeeper 分发体验未验证。运行链接指向临时目录，长期保留请使用 ZIP 解压应用。
 
-系统专项检查：`check_system_flow.py`（GPU 透明层）、`check_system_material.py base|visual`（真实系统底材/交叉外观）、`check_system_smoke.py`（有限功能及短资源）、`check_system_visual_edges.py`（整圈/Finder/故障）、`check_system_motion.py`（时钟对齐的运动截图）、`check_system_theme.py`（真实系统主题切换后恢复）。原始证据留临时目录，验收摘要见实施记录。
+系统专项检查：`check_system_translucency.py`（macOS 26 稀疏细节透底与流光开关真实截图）、`check_system_flow.py`（GPU 透明层）、`check_system_material.py base|visual`（真实系统底材/交叉外观）、`check_system_smoke.py`（有限功能及短资源）、`check_system_visual_edges.py`（整圈/Finder/故障）、`check_system_motion.py`（时钟对齐的运动截图）、`check_system_theme.py`（真实系统主题切换后恢复）。原始证据留临时目录，验收摘要见实施记录。
 
 ## 构建与运行
 

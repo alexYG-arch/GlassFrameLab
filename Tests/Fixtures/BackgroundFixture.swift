@@ -8,6 +8,20 @@ final class Pattern: NSView {
         fflush(stdout)
     }
     override func draw(_ dirtyRect: NSRect) {
+        if backdrop == "light-detail" || backdrop == "dark-detail-icons" {
+            let light = backdrop == "light-detail"
+            (light ? NSColor.white : NSColor(srgbRed: 0.075, green: 0.09, blue: 0.12, alpha: 1)).setFill()
+            bounds.fill()
+            let colors: [NSColor] = [.systemBlue, .systemPurple, .systemOrange, .systemTeal]
+            for i in 0..<5 {
+                let x = bounds.midX - 195 + CGFloat(i) * 85
+                colors[i % 4].setFill()
+                NSBezierPath(roundedRect: NSRect(x: x, y: bounds.midY - 12, width: 32, height: 32), xRadius: 4, yRadius: 4).fill()
+                ("Photo 0\(i + 1)" as NSString).draw(at: NSPoint(x: x - 5, y: bounds.midY - 28),
+                    withAttributes: [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: light ? NSColor.black : NSColor.white])
+            }
+            return
+        }
         let solids: [String: NSColor] = [
             "black": .black,
             "deepgray": NSColor(srgbRed: 0.2, green: 0.2, blue: 0.2, alpha: 1),

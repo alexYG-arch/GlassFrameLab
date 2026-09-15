@@ -85,7 +85,9 @@ extension NSWindow {
 final class FrameSurface: NSView {
     var appearanceChanged: (() -> Void)?
     private(set) var systemMaterialActive = false
-    private var systemView: PassiveVisualEffectView?
+    private var systemView: NSView?
+    private weak var systemOverlay: NSView?
+    private(set) var systemMaterialName = "uninitialized"
     var dragActivity: ((Bool) -> Void)?
     var flowToggle: (() -> Void)?
     var flowEnabled: (() -> Bool)?
@@ -135,12 +137,24 @@ final class FrameSurface: NSView {
         carrierVisible = false
         systemMaterialActive = true
         if systemView == nil {
-            let effect = PassiveVisualEffectView(frame: .zero)
-            effect.material = .hudWindow
-            effect.blendingMode = .behindWindow
-            effect.state = .active
-            effect.wantsLayer = true
-            effect.layer?.masksToBounds = true
+            let effect: NSView
+            if #available(macOS 26.0, *) {
+                // Clear glass retains blurred detail on sparse/light backgrounds.
+                // HUD's stronger tint and blur made these scenes look opaque.
+                let glass = PassiveGlassEffectView(frame: .zero)
+                glass.style = .clear
+                effect = glass
+                systemMaterialName = "glass_clear"
+            } else {
+                let hud = PassiveVisualEffectView(frame: .zero)
+                hud.material = .hudWindow
+                hud.blendingMode = .behindWindow
+                hud.state = .active
+                hud.wantsLayer = true
+                hud.layer?.masksToBounds = true
+                effect = hud
+                systemMaterialName = "hudWindow_compatibility"
+            }
             addSubview(effect, positioned: .below, relativeTo: subviews.first)
             systemView = effect
         }
@@ -154,6 +168,21 @@ final class FrameSurface: NSView {
         appearanceChanged?()
     }
 
+    func installSystemOverlay(_ overlay: NSView) {
+        if #available(macOS 26.0, *), let glass = systemView as? NSGlassEffectView {
+            // NSGlassEffectView guarantees foreground ordering for contentView.
+            // A sibling Metal view can be composited underneath native glass.
+            let host = NSView(frame: glass.bounds)
+            glass.contentView = host
+            host.addSubview(overlay)
+            overlay.autoresizingMask = []
+            systemOverlay = overlay
+            needsLayout = true
+        } else {
+            addSubview(overlay)
+        }
+    }
+
     override func layout() {
         super.layout()
         // A hidden fallback does not need geometry/vibrancy updates on every
@@ -161,7 +190,16 @@ final class FrameSurface: NSView {
         guard let effect = systemMaterialActive ? systemView : (fallbackActive ? fallbackView : nil) else { return }
         let glass = window?.glassRectInWindow ?? bounds
         effect.frame = glass
-        effect.layer?.cornerRadius = min((window as? FramePanel)?.style.cornerRadius ?? 16, min(glass.width, glass.height)/2)
+        let radius = min((window as? FramePanel)?.style.cornerRadius ?? 16, min(glass.width, glass.height)/2)
+        if #available(macOS 26.0, *), let clearGlass = effect as? NSGlassEffectView {
+            clearGlass.cornerRadius = radius
+            // Keep shader coordinates in full-window space, including shadow inset.
+            clearGlass.contentView?.frame = clearGlass.bounds
+            systemOverlay?.frame = NSRect(x: -glass.minX, y: -glass.minY, width: bounds.width, height: bounds.height)
+            // Native glass owns its rim. An additional layer border would double it.
+            return
+        }
+        effect.layer?.cornerRadius = radius
         effect.layer?.borderWidth = 0.55
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         effect.layer?.borderColor = (systemMaterialActive && !dark
@@ -263,5 +301,10 @@ final class FrameSurface: NSView {
 
 /// The material never takes the frame's drag or context-menu events.
 private final class PassiveVisualEffectView: NSVisualEffectView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+@available(macOS 26.0, *)
+private final class PassiveGlassEffectView: NSGlassEffectView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }

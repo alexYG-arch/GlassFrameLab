@@ -15,7 +15,7 @@ import plistlib, sys
 from pathlib import Path
 info = plistlib.loads(Path(sys.argv[1]).read_bytes())
 info.update(CFBundleIdentifier='local.uidev.GlassFrameLab.material',
-            CFBundleName='GlassFrame Material', CFBundleVersion='2',
+            CFBundleName='GlassFrame Material', CFBundleVersion='3',
             GlassFrameMaterialBackend='system')
 info.pop('NSScreenCaptureUsageDescription', None)
 Path(sys.argv[2]).write_bytes(plistlib.dumps(info))
